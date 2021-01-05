@@ -106,13 +106,17 @@ def pair_to_tuple(val):
         t1 = val.type.template_argument(0)
         t2 = val.type.template_argument(1)
 
-        base1 = val.type.fields()[0].type
-        base2 = val.type.fields()[1].type
+        if len(val.type.fields()) == 2:
+            base1 = val.type.fields()[0].type
+            base2 = val.type.fields()[1].type
 
-        return ((val if base1.template_argument(2) else
-                 val.cast(base1)["__value_"]).cast(t1),
-                (val if base2.template_argument(2) else
-                 val.cast(base2)["__value_"]).cast(t2))
+            return ((val if base1.template_argument(2) else
+                     val.cast(base1)["__value_"]).cast(t1),
+                    (val if base2.template_argument(2) else
+                     val.cast(base2)["__value_"]).cast(t2))
+        elif len(val.type.fields()) == 1:
+            return (val['__first_'],)
+
     return (val['first'], val['second'])
 
 
@@ -140,16 +144,31 @@ class StringPrinter:
             type = type.target()
 
         ss = pair_to_tuple(self.val['__r_'])[0]['__s']
-        __short_mask = int(self.val['__short_mask'])
-        if (ss['__size_'] & __short_mask) == 0:
-            len = ss['__size_'] >> 1 if __short_mask == 1 else ss['__size_']
-            ptr = ss['__data_']
-        else:
-            sl = pair_to_tuple(self.val['__r_'])[0]['__l']
-            len = sl['__size_']
-            ptr = sl['__data_']
+        sl = pair_to_tuple(self.val['__r_'])[0]['__l']
+        try:
+            __short_mask = int(self.val['__short_mask'])
+        except:
+            __short_mask = None
 
-        return u''.join(chr(ptr[i]) for i in range(len))
+        sl_readable = False
+        try:
+            sl_readable = hex(int(sl['__data_'])).startswith('0x7f')
+        except: # can't parse int of string
+            sl_readable = True
+
+
+        if __short_mask != None and (ss['__size_'] & __short_mask) == 0:
+            length = ss['__size_'] >> 1 if __short_mask == 1 else ss['__size_']
+            ptr = ss['__data_']
+        elif sl_readable:
+            length = sl['__size_']
+            ptr = sl['__data_']
+        else:
+            length = ss['__size_'] >> 1
+            ptr = ss['__data_']
+
+        # return self.val['__r_']['__first_']['__l']['__data_']
+        return u''.join(chr(ptr[i]) for i in range(length))
 
     def display_hint(self):
         return 'string'
@@ -1041,3 +1060,4 @@ def build_libcxx_dictionary():
 
 
 build_libcxx_dictionary()
+register_libcxx_printers(None)
